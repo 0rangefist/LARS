@@ -12,18 +12,24 @@ jobs:
       - name: Install Dependencies
         shell: pwsh
         run: |
-          # Download and Extract LibTorch
+          # Download LibTorch
           Invoke-WebRequest -Uri "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.1.0%2Bcpu.zip" -OutFile libtorch.zip
-          Expand-Archive libtorch.zip -DestinationPath C:\
+          
+          # Extract to a specific folder
+          Expand-Archive libtorch.zip -DestinationPath C:\LT_TEMP
+          
+          # Move it to a clean path C:\libtorch
+          Move-Item -Path C:\LT_TEMP\libtorch -Destination C:\libtorch
+          
           # Download JUCE
           git clone --depth 1 https://github.com/juce-framework/JUCE.git C:\JUCE
 
       - name: Configure CMake
         shell: pwsh
         run: |
-          # We point -S to the folder containing CMakeLists.txt
+          # We explicitly tell CMake where the Torch config file is
           cmake -S drums_demix -B build -G "Visual Studio 17 2022" `
-          -DCMAKE_PREFIX_PATH="C:/libtorch" `
+          -DTorch_DIR="C:/libtorch/share/cmake/Torch" `
           -DJUCE_DIR="C:/JUCE"
 
       - name: Build
@@ -33,6 +39,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LARS-Windows-VST3
-          # Note: If the build succeeds but artifact upload fails, 
-          # we may need to verify the exact output path in the logs.
           path: build/LARS_Artifacts/Release/VST3/LARS.vst3
