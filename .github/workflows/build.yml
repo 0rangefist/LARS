@@ -38,28 +38,30 @@ jobs:
         shell: pwsh
         run: |
           $cmakePath = "drums_demix/CMakeLists.txt"
-          
-          # Read the file content
           $content = Get-Content $cmakePath -Raw
           
-          # 1. Fix LibTorch Path (Line 25)
+          # 1. Force C++17 for LibTorch compatibility
+          $content = $content -replace 'project\(', "set(CMAKE_CXX_STANDARD 17)`nset(CMAKE_CXX_STANDARD_REQUIRED ON)`nproject("
+
+          # 2. Fix LibTorch Path
           $content = $content -replace 'set\(CMAKE_PREFIX_PATH "INSERT YOUR PATH TO LIBTORCH"\)', 'set(CMAKE_PREFIX_PATH "C:/libtorch")'
           
-          # 2. Fix JUCE Path (Line 31)
+          # 3. Fix JUCE Path
           $content = $content -replace 'add_subdirectory\(INSERT YOUR PATH TO JUCE \./JUCE\)', 'add_subdirectory("C:/JUCE" ./JUCE)'
 
-          # 3. Fix the "Post-Build" DLL Copy Path (The cause of your current error)
-          # Replaces the variable ${TORCH_INSTALL_PREFIX} with the hardcoded path
+          # 4. Fix the Post-Build DLL Copy Path
+          # This replaces the empty variable with the actual install path
           $content = $content -replace '\$\{TORCH_INSTALL_PREFIX\}', 'C:/libtorch'
-
-          # 4. (Optional) Suppress the "unreachable code" warnings to clean up logs
-          $content = $content -replace 'set\(CMAKE_CXX_FLAGS "\$\{CMAKE_CXX_FLAGS\} \$\{TORCH_CXX_FLAGS\}"\)', 'set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} /wd4244 /wd4702 /bigobj")'
           
-          # Write the changes back to the file
+          # 5. Add /bigobj flag (Required for heavy LibTorch/JUCE builds)
+          if ($content -notlike "*target_compile_options*") {
+              $content += "`nadd_compile_options(/bigobj)"
+          }
+
           Set-Content -Path $cmakePath -Value $content
           
-          # Verify the content
-          Get-Content $cmakePath | Select-Object -First 35
+          # Verify the first few lines to ensure C++17 is set
+          Get-Content $cmakePath | Select-Object -First 10
 
       - name: Configure CMake
         shell: pwsh
