@@ -4,15 +4,13 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh  # Use PowerShell Core for better consistency
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
       - name: Install Dependencies
+        shell: pwsh
         run: |
           # Download and Extract LibTorch
           Invoke-WebRequest -Uri "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.1.0%2Bcpu.zip" -OutFile libtorch.zip
@@ -21,9 +19,10 @@ jobs:
           git clone --depth 1 https://github.com/juce-framework/JUCE.git C:\JUCE
 
       - name: Configure CMake
+        shell: pwsh
         run: |
-          # -S . tells CMake the source is in the CURRENT directory
-          cmake -S . -B build -G "Visual Studio 17 2022" `
+          # We point -S to the folder containing CMakeLists.txt
+          cmake -S drums_demix -B build -G "Visual Studio 17 2022" `
           -DCMAKE_PREFIX_PATH="C:/libtorch" `
           -DJUCE_DIR="C:/JUCE"
 
@@ -34,4 +33,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LARS-Windows-VST3
+          # Note: If the build succeeds but artifact upload fails, 
+          # we may need to verify the exact output path in the logs.
           path: build/LARS_Artifacts/Release/VST3/LARS.vst3
