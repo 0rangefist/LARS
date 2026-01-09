@@ -39,29 +39,36 @@ jobs:
         run: |
           $cmakePath = "drums_demix/CMakeLists.txt"
           
-          # 1. Read the file content
+          # 1. Define the Global Settings we need
+          $globalSettings = @"
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_STANDARD_REQUIRED ON)
+          if(MSVC)
+            add_compile_options(/bigobj /wd4244 /wd4702)
+            add_definitions(-D_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS)
+          endif()
+          "@
+      
+          # 2. Read the current file
           $content = Get-Content $cmakePath -Raw
           
-          # 2. Force C++17 at the top (Fixes the test_nn error)
-          $content = "set(CMAKE_CXX_STANDARD 17)`nset(CMAKE_CXX_STANDARD_REQUIRED ON)`n" + $content
-          
-          # 3. Fix LibTorch Path
+          # 3. Inject global settings at the very top
+          $content = $globalSettings + "`n" + $content
+      
+          # 4. Fix the Hardcoded Paths
           $content = $content -replace 'set\(CMAKE_PREFIX_PATH "INSERT YOUR PATH TO LIBTORCH"\)', 'set(CMAKE_PREFIX_PATH "C:/libtorch")'
-          
-          # 4. Fix JUCE Path
           $content = $content -replace 'add_subdirectory\(INSERT YOUR PATH TO JUCE \./JUCE\)', 'add_subdirectory("C:/JUCE" ./JUCE)'
-
-          # 5. Fix the "Post-Build" DLL Copy Path (Fixes the Exit Code 1)
+          
+          # 5. Fix the Post-Build DLL Copy
           $content = $content -replace '\$\{TORCH_INSTALL_PREFIX\}', 'C:/libtorch'
-
-          # 6. Suppress warnings and add /bigobj
-          $content = $content -replace 'set\(CMAKE_CXX_FLAGS "\$\{CMAKE_CXX_FLAGS\} \$\{TORCH_CXX_FLAGS\}"\)', 'set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} /wd4244 /wd4702 /bigobj")'
           
-          # Write the changes back to the file
+          # 6. FIX THE test_nn C++ STANDARD - Change from 14 to 17
+          $content = $content -replace 'set_property\(TARGET test_nn PROPERTY CXX_STANDARD 14\)', 'set_property(TARGET test_nn PROPERTY CXX_STANDARD 17)'
+      
+          # 7. Save and Verify
           Set-Content -Path $cmakePath -Value $content
-          
-          # Verify the first 40 lines
-          Get-Content $cmakePath | Select-Object -First 40
+          Write-Host "--- Last 15 lines of patched file ---"
+          Get-Content $cmakePath | Select-Object -Last 15
 
       - name: Configure CMake
         shell: pwsh
