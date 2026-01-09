@@ -27,10 +27,11 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
-          # We explicitly tell CMake where the Torch config file is
+          # We define JUCE_DIR and also pass it as a hint to CMake
           cmake -S drums_demix -B build -G "Visual Studio 17 2022" `
           -DTorch_DIR="C:/libtorch/share/cmake/Torch" `
-          -DJUCE_DIR="C:/JUCE"
+          -DJUCE_DIR="C:/JUCE" `
+          -Djuce_PATH="C:/JUCE"
 
       - name: Build
         run: cmake --build build --config Release --target LARS_VST3
