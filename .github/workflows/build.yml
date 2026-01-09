@@ -38,30 +38,30 @@ jobs:
         shell: pwsh
         run: |
           $cmakePath = "drums_demix/CMakeLists.txt"
+          
+          # 1. Read the file content
           $content = Get-Content $cmakePath -Raw
           
-          # 1. Force C++17 for LibTorch compatibility
-          $content = $content -replace 'project\(', "set(CMAKE_CXX_STANDARD 17)`nset(CMAKE_CXX_STANDARD_REQUIRED ON)`nproject("
-
-          # 2. Fix LibTorch Path
+          # 2. Force C++17 at the top (Fixes the test_nn error)
+          $content = "set(CMAKE_CXX_STANDARD 17)`nset(CMAKE_CXX_STANDARD_REQUIRED ON)`n" + $content
+          
+          # 3. Fix LibTorch Path
           $content = $content -replace 'set\(CMAKE_PREFIX_PATH "INSERT YOUR PATH TO LIBTORCH"\)', 'set(CMAKE_PREFIX_PATH "C:/libtorch")'
           
-          # 3. Fix JUCE Path
+          # 4. Fix JUCE Path
           $content = $content -replace 'add_subdirectory\(INSERT YOUR PATH TO JUCE \./JUCE\)', 'add_subdirectory("C:/JUCE" ./JUCE)'
 
-          # 4. Fix the Post-Build DLL Copy Path
-          # This replaces the empty variable with the actual install path
+          # 5. Fix the "Post-Build" DLL Copy Path (Fixes the Exit Code 1)
           $content = $content -replace '\$\{TORCH_INSTALL_PREFIX\}', 'C:/libtorch'
-          
-          # 5. Add /bigobj flag (Required for heavy LibTorch/JUCE builds)
-          if ($content -notlike "*target_compile_options*") {
-              $content += "`nadd_compile_options(/bigobj)"
-          }
 
+          # 6. Suppress warnings and add /bigobj
+          $content = $content -replace 'set\(CMAKE_CXX_FLAGS "\$\{CMAKE_CXX_FLAGS\} \$\{TORCH_CXX_FLAGS\}"\)', 'set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} /wd4244 /wd4702 /bigobj")'
+          
+          # Write the changes back to the file
           Set-Content -Path $cmakePath -Value $content
           
-          # Verify the first few lines to ensure C++17 is set
-          Get-Content $cmakePath | Select-Object -First 10
+          # Verify the first 40 lines
+          Get-Content $cmakePath | Select-Object -First 40
 
       - name: Configure CMake
         shell: pwsh
