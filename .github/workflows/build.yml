@@ -4,13 +4,15 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh  # Use PowerShell Core for better consistency
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
       - name: Install Dependencies
-        shell: powershell
         run: |
           # Download and Extract LibTorch
           Invoke-WebRequest -Uri "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.1.0%2Bcpu.zip" -OutFile libtorch.zip
@@ -20,9 +22,10 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -B build -G "Visual Studio 17 2022" `
+          # -S . tells CMake the source is in the CURRENT directory
+          cmake -S . -B build -G "Visual Studio 17 2022" `
           -DCMAKE_PREFIX_PATH="C:/libtorch" `
-          -DJUCE_DIR="C:/JUCE" .
+          -DJUCE_DIR="C:/JUCE"
 
       - name: Build
         run: cmake --build build --config Release --target LARS_VST3
