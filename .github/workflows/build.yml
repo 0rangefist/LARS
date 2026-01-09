@@ -43,19 +43,22 @@ jobs:
           $content = Get-Content $cmakePath -Raw
           
           # 1. Fix LibTorch Path (Line 25)
-          # Replaces: set(CMAKE_PREFIX_PATH "INSERT YOUR PATH TO LIBTORCH")
-          # With:     set(CMAKE_PREFIX_PATH "C:/libtorch")
           $content = $content -replace 'set\(CMAKE_PREFIX_PATH "INSERT YOUR PATH TO LIBTORCH"\)', 'set(CMAKE_PREFIX_PATH "C:/libtorch")'
           
           # 2. Fix JUCE Path (Line 31)
-          # Replaces: add_subdirectory(INSERT YOUR PATH TO JUCE ./JUCE)
-          # With:     add_subdirectory("C:/JUCE" ./JUCE)
           $content = $content -replace 'add_subdirectory\(INSERT YOUR PATH TO JUCE \./JUCE\)', 'add_subdirectory("C:/JUCE" ./JUCE)'
+
+          # 3. Fix the "Post-Build" DLL Copy Path (The cause of your current error)
+          # Replaces the variable ${TORCH_INSTALL_PREFIX} with the hardcoded path
+          $content = $content -replace '\$\{TORCH_INSTALL_PREFIX\}', 'C:/libtorch'
+
+          # 4. (Optional) Suppress the "unreachable code" warnings to clean up logs
+          $content = $content -replace 'set\(CMAKE_CXX_FLAGS "\$\{CMAKE_CXX_FLAGS\} \$\{TORCH_CXX_FLAGS\}"\)', 'set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} /wd4244 /wd4702 /bigobj")'
           
           # Write the changes back to the file
           Set-Content -Path $cmakePath -Value $content
           
-          # Verify the content (optional, for debugging)
+          # Verify the content
           Get-Content $cmakePath | Select-Object -First 35
 
       - name: Configure CMake
