@@ -1,43 +1,78 @@
-name: Build LARS Windows
-on: [push, workflow_dispatch]
+name: Build LARS Plugin
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
+    runs-on: windows-2025
 
-      - name: Install Dependencies
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download LibTorch
         shell: pwsh
         run: |
-          # Download LibTorch
+          # Download LibTorch (CPU version for Windows)
           Invoke-WebRequest -Uri "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.1.0%2Bcpu.zip" -OutFile libtorch.zip
           
-          # Extract to a specific folder
+          # Extract
           Expand-Archive libtorch.zip -DestinationPath C:\LT_TEMP
           
-          # Move it to a clean path C:\libtorch
+          # Move to C:\libtorch
           Move-Item -Path C:\LT_TEMP\libtorch -Destination C:\libtorch
-          
-          # Download JUCE
+
+      - name: Download JUCE
+        shell: pwsh
+        run: |
+          # Clone JUCE to C:\JUCE
           git clone --depth 1 https://github.com/juce-framework/JUCE.git C:\JUCE
+
+      - name: Patch CMakeLists.txt
+        shell: pwsh
+        run: |
+          $cmakePath = "drums_demix/CMakeLists.txt"
+          
+          # Read the file content
+          $content = Get-Content $cmakePath -Raw
+          
+          # 1. Fix LibTorch Path (Line 25)
+          # Replaces: set(CMAKE_PREFIX_PATH "INSERT YOUR PATH TO LIBTORCH")
+          # With:     set(CMAKE_PREFIX_PATH "C:/libtorch")
+          $content = $content -replace 'set\(CMAKE_PREFIX_PATH "INSERT YOUR PATH TO LIBTORCH"\)', 'set(CMAKE_PREFIX_PATH "C:/libtorch")'
+          
+          # 2. Fix JUCE Path (Line 31)
+          # Replaces: add_subdirectory(INSERT YOUR PATH TO JUCE ./JUCE)
+          # With:     add_subdirectory("C:/JUCE" ./JUCE)
+          $content = $content -replace 'add_subdirectory\(INSERT YOUR PATH TO JUCE \./JUCE\)', 'add_subdirectory("C:/JUCE" ./JUCE)'
+          
+          # Write the changes back to the file
+          Set-Content -Path $cmakePath -Value $content
+          
+          # Verify the content (optional, for debugging)
+          Get-Content $cmakePath | Select-Object -First 35
 
       - name: Configure CMake
         shell: pwsh
         run: |
-          # We define JUCE_DIR and also pass it as a hint to CMake
-          cmake -S drums_demix -B build -G "Visual Studio 17 2022" `
-          -DTorch_DIR="C:/libtorch/share/cmake/Torch" `
-          -DJUCE_DIR="C:/JUCE" `
-          -Djuce_PATH="C:/JUCE"
+          # Now we can run CMake. We point -B to build and -S to the source folder (drums_demix)
+          cmake -S drums_demix -B build -G "Visual Studio 17 2022"
 
-      - name: Build
-        run: cmake --build build --config Release --target LARS_VST3
+      - name: Build Plugin
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel
 
-      - name: Upload Artifact
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: LARS-Windows-VST3
-          path: build/LARS_Artifacts/Release/VST3/LARS.vst3
+          name: LARS-Plugin
+          path: |
+            build/LARS_artefacts/Release/VST3/*.vst3
+            build/LARS_artefacts/Release/Standalone/*.exe
